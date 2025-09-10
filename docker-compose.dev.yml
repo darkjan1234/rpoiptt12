@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ptt-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ptt_dev_db
+      POSTGRES_USER: ptt_user
+      POSTGRES_PASSWORD: ptt_password
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - ptt-dev-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ptt-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - ptt-dev-network
+
+  # Backend API (Development mode)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ptt-backend-dev
+    restart: unless-stopped
+    environment:
+      FLASK_ENV: development
+      DATABASE_URL: postgresql://ptt_user:ptt_password@postgres:5432/ptt_dev_db
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: dev-jwt-secret-key
+      SECRET_KEY: dev-secret-key
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ptt-dev-network
+    volumes:
+      - ./backend:/app
+    command: python app.py
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  ptt-dev-network:
+    driver: bridge
